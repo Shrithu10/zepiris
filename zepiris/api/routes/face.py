@@ -56,7 +56,7 @@ def _decode_upload(raw: bytes) -> np.ndarray | None:
     return image_rgb
 
 
-def _run_iqa_and_embed(
+async def _run_iqa_and_embed(
     raw: bytes,
     settings: SettingsDep,
     iqa_svc: IQADep,
@@ -83,12 +83,12 @@ def _run_iqa_and_embed(
         raise ImageEncodeError()
     image_b64 = base64.b64encode(buf.tobytes()).decode("utf-8")
 
-    ml_struct = iqa_svc.assess(image_bgr, image_b64)
+    ml_struct = await iqa_svc.assess(image_bgr, image_b64)
 
     if not ml_struct.passed:
         return object_key, ml_struct, None
 
-    embed_result = embedding_svc.embed(image_bgr)
+    embed_result = await embedding_svc.embed(image_bgr)
 
     if not embed_result.face_detected:
         ml_struct = ImageQualityAssessmentResult(
@@ -136,7 +136,9 @@ async def search_face(
     raw = await file.read()
     _validate_image_bytes(raw)
 
-    object_key, ml_struct, vector = _run_iqa_and_embed(raw, settings, iqa_svc, embedding_svc, minio)
+    object_key, ml_struct, vector = await _run_iqa_and_embed(
+        raw, settings, iqa_svc, embedding_svc, minio
+    )
 
     if vector is None:
         return SearchResponse(
@@ -172,7 +174,9 @@ async def insert_face(
     raw = await file.read()
     _validate_image_bytes(raw)
 
-    object_key, ml_struct, vector = _run_iqa_and_embed(raw, settings, iqa_svc, embedding_svc, minio)
+    object_key, ml_struct, vector = await _run_iqa_and_embed(
+        raw, settings, iqa_svc, embedding_svc, minio
+    )
 
     if vector is None:
         raise ImageQualityCheckFailedError(
@@ -217,7 +221,9 @@ async def upsert_face(
     raw = await file.read()
     _validate_image_bytes(raw)
 
-    object_key, ml_struct, vector = _run_iqa_and_embed(raw, settings, iqa_svc, embedding_svc, minio)
+    object_key, ml_struct, vector = await _run_iqa_and_embed(
+        raw, settings, iqa_svc, embedding_svc, minio
+    )
 
     if vector is None:
         raise ImageQualityCheckFailedError(
