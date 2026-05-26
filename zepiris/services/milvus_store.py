@@ -84,12 +84,15 @@ class MilvusFaceStore:
             )
 
         if not col.has_index():
+            # HNSW graph index: O(log N) ANN search vs O(N) brute-force FLAT.
+            # M=16 (graph connectivity) and efConstruction=200 (build quality)
+            # match Zepto's published production configuration.
             col.create_index(
                 field_name="embedding",
                 index_params={
-                    "index_type": "FLAT",
+                    "index_type": "HNSW",
                     "metric_type": "COSINE",
-                    "params": {},
+                    "params": {"M": 16, "efConstruction": 200},
                 },
             )
         col.load()
@@ -116,10 +119,12 @@ class MilvusFaceStore:
         if tenant:
             expr = f'tenant == "{tenant}"'
 
+        # ef must be >= top_k for HNSW; larger values improve recall at the
+        # cost of latency. max(top_k, 64) keeps single-digit ms at scale.
         results = col.search(
             data=[embedding],
             anns_field="embedding",
-            param={"metric_type": "COSINE", "params": {}},
+            param={"metric_type": "COSINE", "params": {"ef": max(top_k, 64)}},
             limit=top_k,
             expr=expr,
             output_fields=["face_id", "tenant", "object_key"],
