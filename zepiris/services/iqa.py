@@ -20,11 +20,11 @@ class MLInferenceIQAService:
     def __init__(self, client: MLInferenceClient) -> None:
         self._client = client
 
-    def assess(self, image_bgr: np.ndarray, image_b64: str) -> ImageQualityAssessmentResult:
+    async def assess(self, image_bgr: np.ndarray, image_b64: str) -> ImageQualityAssessmentResult:
         """Run ML IQA. ``image_bgr`` is unused (kept for call-site compatibility with decoding pipeline)."""
         _ = image_bgr
         try:
-            return self._client.assess_image_quality(image_b64)
+            return await self._client.assess_image_quality(image_b64)
         except httpx.HTTPStatusError as e:
             try:
                 upstream = e.response.json()

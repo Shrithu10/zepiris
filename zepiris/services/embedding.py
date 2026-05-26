@@ -23,7 +23,7 @@ class FaceEmbeddingProvider(ABC):
     """
 
     @abstractmethod
-    def embed(self, image_bgr: np.ndarray) -> FaceEmbeddingResult:
+    async def embed(self, image_bgr: np.ndarray) -> FaceEmbeddingResult:
         raise NotImplementedError
 
 
@@ -37,7 +37,7 @@ class StubFaceEmbeddingService(FaceEmbeddingProvider):
     def __init__(self, dim: int) -> None:
         self._dim = dim
 
-    def embed(self, image_bgr: np.ndarray) -> FaceEmbeddingResult:
+    async def embed(self, image_bgr: np.ndarray) -> FaceEmbeddingResult:
         payload = image_bgr.tobytes()
         seed = int.from_bytes(hashlib.sha256(payload).digest()[:8], "big")
         rng = np.random.default_rng(seed)
@@ -59,9 +59,9 @@ class MLInferenceEmbeddingService(FaceEmbeddingProvider):
     def __init__(self, client: MLInferenceClient) -> None:
         self._client = client
 
-    def embed(self, image_bgr: np.ndarray) -> FaceEmbeddingResult:
+    async def embed(self, image_bgr: np.ndarray) -> FaceEmbeddingResult:
         ok, buf = cv2.imencode(".jpg", image_bgr)
         if not ok:
             raise ImageEncodeError()
         image_b64 = base64.b64encode(buf.tobytes()).decode("utf-8")
-        return self._client.embed_face(image_b64)
+        return await self._client.embed_face(image_b64)

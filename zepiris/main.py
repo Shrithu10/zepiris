@@ -47,7 +47,7 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    ml_client.close()
+    await ml_client.aclose()
     milvus.disconnect()
 
 
