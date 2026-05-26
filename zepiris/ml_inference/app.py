@@ -16,6 +16,7 @@ from functools import lru_cache
 from fastapi import FastAPI
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from zepiris.ml_inference.adaface_embedding import AdaFaceEmbeddingService
 from zepiris.ml_inference.blur_detection import BlurDetectionService
 from zepiris.ml_inference.face_embedding import FaceEmbeddingService
 from zepiris.ml_inference.image_quality_assessment import (
@@ -66,6 +67,15 @@ class MLServiceSettings(BaseSettings):
     face_detection_width: int = 640
     face_detection_height: int = 640
     face_area_threshold: float = 0.01
+
+    # Embedding backend: "insightface" (buffalo_l/ArcFace) or "adaface" (IR-50, CVPR 2022)
+    # AdaFace significantly outperforms ArcFace on low-quality images (blur, low-light, occlusion)
+    face_embedding_backend: str = "insightface"
+
+    adaface_model_source: str = "auto"
+    adaface_hf_repo_id: str = ""
+    adaface_hf_model_file: str = "adaface_ir50.ckpt"
+    adaface_local_model_path: str = "/app/models/adaface_ir50.ckpt"
 
 
 @lru_cache
@@ -130,15 +140,31 @@ async def lifespan(app: FastAPI):
         failed.append("blur")
 
     try:
-        app.state.face_embedding_service = FaceEmbeddingService(
-            embedding_dim=s.face_embedding_dim,
-            detection_size=(s.face_detection_width, s.face_detection_height),
-            facial_area_threshold=s.face_area_threshold,
-            device=device,
-        )
+        if s.face_embedding_backend == "adaface":
+            logger.info("Face embedding backend: AdaFace IR-50 (CVPR 2022)")
+            app.state.face_embedding_service = AdaFaceEmbeddingService(
+                huggingface_repo_id=s.adaface_hf_repo_id,
+                huggingface_model_file=s.adaface_hf_model_file,
+                local_model_path=s.adaface_local_model_path or None,
+                model_source=s.adaface_model_source,
+                embedding_dim=s.face_embedding_dim,
+                detection_size=(s.face_detection_width, s.face_detection_height),
+                facial_area_threshold=s.face_area_threshold,
+                device=device,
+            )
+        else:
+            logger.info("Face embedding backend: InsightFace buffalo_l (ArcFace)")
+            app.state.face_embedding_service = FaceEmbeddingService(
+                embedding_dim=s.face_embedding_dim,
+                detection_size=(s.face_detection_width, s.face_detection_height),
+                facial_area_threshold=s.face_area_threshold,
+                device=device,
+            )
         app.state.face_embedding_service.load_model()
     except Exception:
-        logger.exception("Failed to load FaceEmbeddingService")
+        logger.exception(
+            "Failed to load face embedding service (backend=%s)", s.face_embedding_backend
+        )
         app.state.face_embedding_service = None
         failed.append("face_embedding")
 

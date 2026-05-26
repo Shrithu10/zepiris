@@ -4,6 +4,7 @@ from typing import Annotated, TypeVar
 
 from fastapi import Depends, HTTPException, Request
 
+from zepiris.ml_inference.adaface_embedding import AdaFaceEmbeddingService
 from zepiris.ml_inference.blur_detection import BlurDetectionService
 from zepiris.ml_inference.face_embedding import FaceEmbeddingService
 from zepiris.ml_inference.image_quality_assessment import (
@@ -43,12 +44,13 @@ def _blur(request: Request) -> BlurDetectionService:
     return _require("blur", request.app.state.blur_service)
 
 
-def _face_embedding(request: Request) -> FaceEmbeddingService:
+def _face_embedding(request: Request) -> FaceEmbeddingService | AdaFaceEmbeddingService:
     return _require(
         "face_embedding",
         request.app.state.face_embedding_service,
         hint=(
-            "Face embedding model (insightface / detection) failed to load. "
+            "Face embedding service failed to load. "
+            "Check ML_SERVICE_FACE_EMBEDDING_BACKEND and the corresponding model path. "
             "See ML container startup logs."
         ),
     )
@@ -70,5 +72,7 @@ def _iqa(request: Request) -> ImageQualityAssessmentService:
 NSFWDep = Annotated[NSFWDetectionService, Depends(_nsfw)]
 SpoofDep = Annotated[SpoofDetectionService, Depends(_spoof)]
 BlurDep = Annotated[BlurDetectionService, Depends(_blur)]
-FaceEmbeddingDep = Annotated[FaceEmbeddingService, Depends(_face_embedding)]
+FaceEmbeddingDep = Annotated[
+    FaceEmbeddingService | AdaFaceEmbeddingService, Depends(_face_embedding)
+]
 IQADep = Annotated[ImageQualityAssessmentService, Depends(_iqa)]
